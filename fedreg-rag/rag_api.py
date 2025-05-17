@@ -14,10 +14,7 @@ from langchain.prompts import PromptTemplate
 
 load_dotenv()
 
-# Initialize AWS clients
-lambda_client = boto3.client('lambda', region_name=os.getenv('AWS_REGION'))
-bucket_name = os.getenv('S3_BUCKET')
-
+# Initialize embeddings and models
 if os.getenv('USE_OPENAI', 'true').lower() == 'true':
     embeddings = OpenAIEmbeddings()
     llm = ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo")
@@ -147,48 +144,42 @@ async def analyze_rule(rule_id: str, query: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analyzing rule: {str(e)}")
 
-@app.post("/trigger-sentiment")
-async def trigger_sentiment_analysis(rule_id: str):
-    """Trigger the sentiment analysis Lambda functions for a rule"""
+@app.post("/process-federal-register")
+async def process_federal_register(file_path: str):
+    """Process a Federal Register abstracts file"""
     try:
-        sampler_response = lambda_client.invoke(
-            FunctionName="CommentSampler",
-            InvocationType='RequestResponse',
-            Payload=json.dumps({
-                'bucket': bucket_name,
-                'ruleId': rule_id,
-                'sampling_percentage': 25
-            })
+        import subprocess
+        result = subprocess.run(
+            ["python", "process_fr_abstracts.py", file_path],
+            capture_output=True,
+            text=True
         )
         
-        sampler_result = json.loads(sampler_response['Payload'].read().decode())
-        
-        if sampler_result['statusCode'] == 200:
-            sentiment_response = lambda_client.invoke(
-                FunctionName="CommentSentimentAnalyzer",
-                InvocationType='RequestResponse',
-                Payload=json.dumps({
-                    'bucket': bucket_name,
-                    'ruleId': rule_id
-                })
+        if result.returncode == 0:
+            try:
+                output = json.loads(result.stdout.strip().split('\n')[-1])
+                return {
+                    "success": True,
+                    "processed": output.get("processed_rules", 0),
+                    "chunks": output.get("total_chunks", 0)
+                }
+            except:
+                return {
+                    "success": True,
+                    "message": "Processing completed",
+                    "output": result.stdout
+                }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error processing Federal Register abstracts: {result.stderr}"
             )
             
-            sentiment_result = json.loads(sentiment_response['Payload'].read().decode())
-            
-            if sentiment_result['statusCode'] == 200:
-                return {
-                    'rule_id': rule_id,
-                    'sentiment': {
-                        'dominant': sentiment_result['dominantSentiment'],
-                        'positive_percent': sentiment_result['positivePercentage'],
-                        'negative_percent': sentiment_result['negativePercentage']
-                    }
-                }
-        
-        raise HTTPException(status_code=500, detail="Failed to process sentiment analysis")
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error triggering sentiment analysis: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process Federal Register abstracts: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn
