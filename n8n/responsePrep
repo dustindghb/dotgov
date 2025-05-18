@@ -1,7 +1,5 @@
-// Function node: Direct OpenAI API Call
 const prompt = $node["Prepare RAG Context"].json.prompt 
 
-// Make the API call directly from the Function node
 try {
   const response = await $http.post({
     url: 'https://api.openai.com/v1/chat/completions',
@@ -26,9 +24,7 @@ try {
     }
   });
   
-  // Check if there's a valid response
   if (response.data && response.data.choices && response.data.choices[0]) {
-    // Extract the message content
     const summaryContent = response.data.choices[0].message.content;
     
     return {
@@ -41,14 +37,12 @@ try {
     throw new Error("No valid response content from OpenAI");
   }
 } catch (error) {
-  // Provide detailed error information
   console.log("OpenAI API Error:", error.message);
   if (error.response) {
     console.log("Status code:", error.response.status);
     console.log("Error data:", JSON.stringify(error.response.data));
   }
   
-  // Return a fallback response for hackathon purposes
   return {
     summary: "I was unable to generate a summary due to an API error. However, I found some potentially relevant proposed rules related to your query. Please review the results below.",
     results: $node["Prepare RAG Context"].json.results || [],

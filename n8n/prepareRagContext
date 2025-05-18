@@ -1,11 +1,9 @@
-// Build RAG context from mock search results
 const results = $input.item.results || [];
 const query = $input.item.query ;
 
 console.log("PREPARE RAG CONTEXT - QUERY:", query);
 console.log("PREPARE RAG CONTEXT - RESULTS COUNT:", results.length);
 
-// Format results as context for RAG
 const context = results.map((item, index) => 
   `[${index + 1}] ${item.title}\n` +
   `ID: ${item.id}\n` +
