@@ -11,8 +11,13 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.llms import LlamaCpp
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
+import chromadb  # Add this import for ChromaDB client settings
 
 load_dotenv()
+
+# Add ChromaDB connection settings
+chroma_host = os.getenv('CHROMA_HOST', 'localhost')
+chroma_port = os.getenv('CHROMA_PORT', '8000')
 
 # Initialize embeddings and models
 if os.getenv('USE_OPENAI', 'true').lower() == 'true':
@@ -30,10 +35,17 @@ else:
     )
 
 chroma_collection_name = os.getenv('COLLECTION_NAME')
+
+# Update ChromaDB connection to use the Docker container
 vectorstore = Chroma(
     collection_name=chroma_collection_name,
     embedding_function=embeddings,
-    persist_directory="./chroma-data"
+    persist_directory="./chroma-data",
+    client_settings=chromadb.config.Settings(
+        chroma_api_impl="rest",
+        chroma_server_host=chroma_host,
+        chroma_server_http_port=chroma_port
+    )
 )
 
 app = FastAPI(title="Federal Register RAG API")
@@ -149,6 +161,8 @@ async def process_federal_register(file_path: str):
     """Process a Federal Register abstracts file"""
     try:
         import subprocess
+        
+        # Run the Federal Register processor script as a subprocess
         result = subprocess.run(
             ["python", "process_fr_abstracts.py", file_path],
             capture_output=True,
@@ -157,6 +171,7 @@ async def process_federal_register(file_path: str):
         
         if result.returncode == 0:
             try:
+                # Try to parse JSON result
                 output = json.loads(result.stdout.strip().split('\n')[-1])
                 return {
                     "success": True,

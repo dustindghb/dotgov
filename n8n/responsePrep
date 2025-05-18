@@ -1,0 +1,59 @@
+// Function node: Direct OpenAI API Call
+const prompt = $node["Prepare RAG Context"].json.prompt 
+
+// Make the API call directly from the Function node
+try {
+  const response = await $http.post({
+    url: 'https://api.openai.com/v1/chat/completions',
+    headers: {
+      'Authorization': 'Bearer ' + "OpenAi account".openAi.apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: {
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system", 
+          content: "You are a helpful assistant specializing in Federal Register proposed rules. Provide concise, accurate summaries based on the relevant rules provided."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 1000
+    }
+  });
+  
+  // Check if there's a valid response
+  if (response.data && response.data.choices && response.data.choices[0]) {
+    // Extract the message content
+    const summaryContent = response.data.choices[0].message.content;
+    
+    return {
+      summary: summaryContent,
+      results: $node["Prepare RAG Context"].json.results || [],
+      query: $node["Prepare RAG Context"].json.query || "unknown query",
+      success: true
+    };
+  } else {
+    throw new Error("No valid response content from OpenAI");
+  }
+} catch (error) {
+  // Provide detailed error information
+  console.log("OpenAI API Error:", error.message);
+  if (error.response) {
+    console.log("Status code:", error.response.status);
+    console.log("Error data:", JSON.stringify(error.response.data));
+  }
+  
+  // Return a fallback response for hackathon purposes
+  return {
+    summary: "I was unable to generate a summary due to an API error. However, I found some potentially relevant proposed rules related to your query. Please review the results below.",
+    results: $node["Prepare RAG Context"].json.results || [],
+    query: $node["Prepare RAG Context"].json.query || "unknown query",
+    success: false,
+    error: error.message
+  };
+}

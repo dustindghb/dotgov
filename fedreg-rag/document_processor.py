@@ -7,6 +7,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings
+import chromadb  # Add this import for ChromaDB client settings
 
 load_dotenv()
 
@@ -14,17 +15,28 @@ load_dotenv()
 s3 = boto3.client('s3', region_name=os.getenv('AWS_REGION'))
 bucket_name = os.getenv('S3_BUCKET')
 
-# Use same embeddings setup as your existing code
+# Add ChromaDB connection settings
+chroma_host = os.getenv('CHROMA_HOST', 'localhost')
+chroma_port = os.getenv('CHROMA_PORT', '8000')
+
+# Use the same embeddings setup as your existing code
 if os.getenv('USE_OPENAI', 'true').lower() == 'true':
     embeddings = OpenAIEmbeddings()
 else:
     embeddings = HuggingFaceEmbeddings(model_name=os.getenv('EMBEDDING_MODEL'))
 
 chroma_collection_name = os.getenv('COLLECTION_NAME')
+
+# Update ChromaDB connection to use the Docker container
 vectorstore = Chroma(
     collection_name=chroma_collection_name,
     embedding_function=embeddings,
-    persist_directory="./chroma-data"
+    persist_directory="./chroma-data",
+    client_settings=chromadb.config.Settings(
+        chroma_api_impl="rest",
+        chroma_server_host=chroma_host,
+        chroma_server_http_port=chroma_port
+    )
 )
 
 def process_federal_register_abstracts(s3_key):
